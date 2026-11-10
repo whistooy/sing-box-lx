@@ -33,12 +33,13 @@ import (
 // failoverHeld returns the held nodes (TCP selection, then UDP selection if it
 // differs). Empty before the first selection.
 func (g *URLTestGroup) failoverHeld() []adapter.Outbound {
+	selectedTCP, selectedUDP := g.selectedLx()
 	held := make([]adapter.Outbound, 0, 2)
-	if g.selectedOutboundTCP != nil {
-		held = append(held, g.selectedOutboundTCP)
+	if selectedTCP != nil {
+		held = append(held, selectedTCP)
 	}
-	if g.selectedOutboundUDP != nil && g.selectedOutboundUDP != g.selectedOutboundTCP {
-		held = append(held, g.selectedOutboundUDP)
+	if selectedUDP != nil && selectedUDP != selectedTCP {
+		held = append(held, selectedUDP)
 	}
 	return held
 }
@@ -84,8 +85,9 @@ func (g *URLTestGroup) failoverCheck(ctx context.Context) map[string]uint16 {
 		}
 	}
 	// Escalation: the failed or slow held node was just probed, skip it in the full run.
-	others := make([]adapter.Outbound, 0, len(g.outbounds))
-	for _, detour := range g.outbounds {
+	outbounds := g.getOutbounds()
+	others := make([]adapter.Outbound, 0, len(outbounds))
+	for _, detour := range outbounds {
 		if !failed[detour.Tag()] && !slow[detour.Tag()] {
 			others = append(others, detour)
 		}
@@ -125,17 +127,18 @@ func (g *URLTestGroup) failoverDegraded(node adapter.Outbound) bool {
 	if history == nil {
 		return false
 	}
+	selectedTCP, selectedUDP := g.selectedLx()
 	for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
-		held := g.selectedOutboundTCP
+		held := selectedTCP
 		if network == N.NetworkUDP {
-			held = g.selectedOutboundUDP
+			held = selectedUDP
 		}
 		if held != node {
 			continue
 		}
 		var best uint16
 		found := false
-		for _, detour := range g.outbounds {
+		for _, detour := range g.getOutbounds() {
 			if detour == node || !supportsNetwork(detour, network) {
 				continue
 			}
@@ -173,12 +176,13 @@ func (g *URLTestGroup) failoverSelect(network string, reselect bool) (adapter.Ou
 		}
 	}
 	if !reselect {
+		selectedTCP, selectedUDP := g.selectedLx()
 		var current adapter.Outbound
 		switch network {
 		case N.NetworkTCP:
-			current = g.selectedOutboundTCP
+			current = selectedTCP
 		case N.NetworkUDP:
-			current = g.selectedOutboundUDP
+			current = selectedUDP
 		}
 		if current != nil {
 			if history := g.history.LoadURLTestHistory(RealTag(current, N.NetworkTCP)); history != nil {

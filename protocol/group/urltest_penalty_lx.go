@@ -106,7 +106,7 @@ func (g *URLTestGroup) penaltyReset(tag string) {
 func (g *URLTestGroup) fastestByDelay(network string) adapter.Outbound {
 	var minDelay uint16
 	var minOutbound adapter.Outbound
-	for _, detour := range g.outbounds {
+	for _, detour := range g.getOutbounds() {
 		if !supportsNetwork(detour, network) {
 			continue
 		}
@@ -134,7 +134,7 @@ func (g *URLTestGroup) penaltyBest(network string, excludeTag string) adapter.Ou
 	var best adapter.Outbound
 	var bestPenalty int64
 	var bestDelay uint16
-	for _, detour := range g.outbounds {
+	for _, detour := range g.getOutbounds() {
 		if !supportsNetwork(detour, network) {
 			continue
 		}
@@ -183,12 +183,13 @@ func (g *URLTestGroup) pickForDialNode(network string) adapter.Outbound {
 			return best
 		}
 	}
+	selectedTCP, selectedUDP := g.selectedLx()
 	var cached adapter.Outbound
 	switch network {
 	case N.NetworkTCP:
-		cached = g.selectedOutboundTCP
+		cached = selectedTCP
 	case N.NetworkUDP:
-		cached = g.selectedOutboundUDP
+		cached = selectedUDP
 	}
 	if cached != nil {
 		return cached
@@ -205,13 +206,13 @@ func (g *URLTestGroup) moveSelection(network string, detour adapter.Outbound) {
 	var changed bool
 	switch network {
 	case N.NetworkTCP:
-		if g.selectedOutboundTCP != detour {
-			g.selectedOutboundTCP = detour
+		if selectedTCP, _ := g.selectedLx(); selectedTCP != detour {
+			g.setSelectedTCPLx(detour)
 			changed = true
 		}
 	case N.NetworkUDP:
-		if g.selectedOutboundUDP != detour {
-			g.selectedOutboundUDP = detour
+		if _, selectedUDP := g.selectedLx(); selectedUDP != detour {
+			g.setSelectedUDPLx(detour)
 			changed = true
 		}
 	}
@@ -300,7 +301,7 @@ func (g *URLTestGroup) maybeForceRetest() {
 // penaltyTotal — «тотальные штрафы»: есть кандидаты с history, и все ≥ порога.
 func (g *URLTestGroup) penaltyTotal(network string) bool {
 	var sawCandidate bool
-	for _, detour := range g.outbounds {
+	for _, detour := range g.getOutbounds() {
 		if !supportsNetwork(detour, network) {
 			continue
 		}
